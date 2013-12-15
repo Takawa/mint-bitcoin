@@ -170,11 +170,31 @@ function bitfinex_get_balances($key, $secret) {
  * @param $secret    Bitfinex API secret
  * @return  double   Total coins in all Bitfinex accounts (trading, exchange, etc.)
  */
-function bitfinex_get_total_value($key, $secret) {
+function bitfinex_get_total_coin_value($key, $secret) {
    $balances = bitfinex_get_balances($key, $secret);
    $_total = 0;
    foreach ($balances as $balance) {
-      $_total += $balance->amount;
+      if ($balance->currency == 'btc') {
+         $_total += doubleval($balance->amount);
+      }
+   }
+   return $_total;
+}
+
+/**
+ * Get total balance of USD in Bitfinex
+ * This will retrieve ALL balances, not just available balances
+ * @param $key       Bitfinex API key
+ * @param $secret    Bitfinex API secret
+ * @return  double   Total USD in all Bitfinex accounts (trading, exchange, etc.)
+ */
+function bitfinex_get_total_usd_value($key, $secret) {
+   $balances = bitfinex_get_balances($key, $secret);
+   $_total = 0;
+   foreach ($balances as $balance) {
+      if ($balance->currency == 'usd') {
+         $_total += doubleval($balance->amount);
+      }
    }
    return $_total;
 }
@@ -289,6 +309,7 @@ if (!empty($_POST['username']) && !empty($_POST['password'])) {
    
    // calculate total coins
    $total = 0;
+   $total_usd = 0;
    
    // first, get all wallet addresses
    $totals = blockchain_get_address_totals($addresses);
@@ -300,9 +321,11 @@ if (!empty($_POST['username']) && !empty($_POST['password'])) {
    
    // if we've got bitfinex API info, get all coins from bitfinex
    if (!empty($bfx_key) && !empty($bfx_secret)) {
-      $bitfinex_total += bitfinex_get_total_value($bfx_key, $bfx_secret);
-      Debug::trace('found bitfinex total balance of ' . $bitfinex_total . ' bitcoins');
+      $bitfinex_total = bitfinex_get_total_coin_value($bfx_key, $bfx_secret);
+      $bitfinex_usd = bitfinex_get_total_usd_value($bfx_key, $bfx_secret);
+      Debug::trace('found bitfinex total balance of ' . $bitfinex_total . ' bitcoins and $' . $bitfinex_usd);
       $total += $bitfinex_total;
+      $total_usd += $bitfinex_usd;
    }
 
    // and if we've got btc-e API info, get active sell orders from btc-e
@@ -322,7 +345,7 @@ if (!empty($_POST['username']) && !empty($_POST['password'])) {
    $account_id = mint_get_account($session, $token, $account);
    
    Debug::trace('updating your bitcoin account info on mint...');
-   $value = number_format($price * $total,2);
+   $value = number_format($price * $total + $total_usd,2);
    echo $total . ' BTC at ' . $price . ' for a total of $' . $value;
    mint_update_account($session, $token, $account_id, $account, $value);
    
